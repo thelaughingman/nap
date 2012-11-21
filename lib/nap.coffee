@@ -83,7 +83,16 @@ module.exports.js = (pkg, gzip = @gzip) =>
     writeFile filename, contents unless @usingMiddleware
     output += "<script src='#{@_assetsDir}/#{filename}' type='text/javascript'></script>"
   output
+ 
+# return asset path
+# 
+# @return {String} asset ouput package(s)
+
+module.exports.assetDir = () =>
   
+  output = (@cdnUrl ? @_assetsDir) + '/'
+  output
+
 # Run css pre-processors & output the packages in dev.
 # 
 # @param {String} pkg The name of the package to output
