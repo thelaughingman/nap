@@ -339,7 +339,7 @@ writeFile = (filename, contents) =>
 uglify = (str) ->
   jsp = uglifyjs.parser
   pro = uglifyjs.uglify
-  ast = jsp.parse str
+  ast = uglifyjs.parser.parse str
   ast = pro.ast_mangle(ast)
   ast = pro.ast_squeeze(ast)
   pro.gen_code(ast)
