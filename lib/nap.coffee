@@ -39,17 +39,18 @@ module.exports = (options = {}) =>
   @cdnUrl = if options.cdnUrl? then options.cdnUrl.replace /\/$/, '' else undefined
   @gzip = options.gzip ? false
   @_tmplPrefix = 'window.JST = {};\n'
-  @_assetsDir = '/assets'
-  @_outputDir = path.normalize @publicDir + @_assetsDir
+  @_assetsDir = '/'
+  #@_outputDir = path.normalize @publicDir + @_assetsDir
+  @_outputDir = path.normalize @publicDir
   
   unless path.existsSync process.cwd() + @publicDir
     throw new Error "The directory #{@publicDir} doesn't exist"
   
   # Clear out assets directory and package assets if mode is production
-  rimraf.sync "#{process.cwd()}/#{@publicDir}/assets"
-  unless @usingMiddleware
-    fs.mkdirSync process.cwd() + @_outputDir, '0755'
-    fs.writeFileSync "#{process.cwd()}/#{@_outputDir}/.gitignore", "/*"
+  # rimraf.sync "#{process.cwd()}/#{@publicDir}/assets"
+  # unless @usingMiddleware
+  #  fs.mkdirSync process.cwd() + @_outputDir, '0755'
+  #  fs.writeFileSync "#{process.cwd()}/#{@_outputDir}/.gitignore", "/*"
   
   # Add any javascript necessary for templates (like the jade runtime)
   for filename in _.flatten @assets.jst
@@ -72,7 +73,7 @@ module.exports.js = (pkg, gzip = @gzip) =>
   
   if @mode is 'production'
     fingerprint = '-' + fingerprintForPkg('js', pkg) if @mode is 'production'
-    src = (@cdnUrl ? @_assetsDir) + '/' + "#{pkg}#{fingerprint ? ''}.js"
+    src = (@cdnUrl ? @_assetsDir) + 'js/' + "#{pkg}#{fingerprint ? ''}.js"
     src += '.jgz' if gzip
     return "<script src='#{src}' type='text/javascript'></script>"
   
@@ -81,18 +82,9 @@ module.exports.js = (pkg, gzip = @gzip) =>
   output = ''
   for filename, contents of preprocessPkg pkg, 'js'
     writeFile filename, contents unless @usingMiddleware
-    output += "<script src='#{@_assetsDir}/#{filename}' type='text/javascript'></script>"
+    output += "<script src='#{@_assetsDir}/js/#{filename}' type='text/javascript'></script>"
   output
- 
-# return asset path
-# 
-# @return {String} asset ouput package(s)
-
-module.exports.assetDir = () =>
   
-  output = (@cdnUrl ? @_assetsDir) + '/'
-  output
-
 # Run css pre-processors & output the packages in dev.
 # 
 # @param {String} pkg The name of the package to output
@@ -103,7 +95,7 @@ module.exports.css = (pkg, gzip = @gzip) =>
   
   if @mode is 'production'
     fingerprint = '-' + fingerprintForPkg('css', pkg) if @mode is 'production'
-    src = (@cdnUrl ? @_assetsDir) + '/' + "#{pkg}#{fingerprint ? ''}.css"
+    src = (@cdnUrl ? @_assetsDir) + 'css/' + "#{pkg}#{fingerprint ? ''}.css"
     src += '.cgz' if gzip
     return "<link href='#{src}' rel='stylesheet' type='text/css'>"
   
@@ -112,7 +104,7 @@ module.exports.css = (pkg, gzip = @gzip) =>
   output = ''
   for filename, contents of preprocessPkg pkg, 'css'
     writeFile filename, contents unless @usingMiddleware
-    output += "<link href='#{@_assetsDir}/#{filename}' rel='stylesheet' type='text/css'>"
+    output += "<link href='#{@_assetsDir}/css/#{filename}' rel='stylesheet' type='text/css'>"
   output
   
 # Compile the templates into JST['file/path'] : functionString pairs in dev
@@ -125,7 +117,7 @@ module.exports.jst = (pkg, gzip = @gzip) =>
   
   if @mode is 'production'
     fingerprint = '-' + fingerprintForPkg('jst', pkg) if @mode is 'production'
-    src = (@cdnUrl ? @_assetsDir) + '/' + "#{pkg}#{fingerprint ? ''}.jst.js"
+    src = (@cdnUrl ? @_assetsDir) + 'js/' + "#{pkg}#{fingerprint ? ''}.jst.js"
     src += '.jgz' if gzip
     return "<script src='#{src}' type='text/javascript'></script>"
   
@@ -137,7 +129,7 @@ module.exports.jst = (pkg, gzip = @gzip) =>
   
   """
   <script src='#{@_assetsDir}/nap-templates-prefix.js' type='text/javascript'></script>
-  <script src='#{@_assetsDir}/#{pkg}.jst.js' type='text/javascript'></script>
+  <script src='#{@_assetsDir}/js/#{pkg}.jst.js' type='text/javascript'></script>
   """
 
 # Runs through all of the asset packages. Concatenates, minifies, and gzips them. Then outputs
@@ -152,8 +144,8 @@ module.exports.package = (callback) =>
     for pkg, files of @assets.js
       contents = (contents for fn, contents of preprocessPkg pkg, 'js').join('')
       contents = uglify contents if @mode is 'production'
-      fingerprint = '-' + fingerprintForPkg('js', pkg, contents) if @mode is 'production'
-      filename = "#{pkg}#{fingerprint ? ''}.js"
+      fingerprint = '-' + fingerprintForPkg('js', pkg) if @mode is 'production'
+      filename = "js/#{pkg}#{fingerprint ? ''}.js"
       writeFile filename, contents
       if @gzip then gzipPkg(contents, filename, finishCallback) else finishCallback()
       total++
@@ -164,8 +156,8 @@ module.exports.package = (callback) =>
         embedFiles filename, contents
       ).join('')
       contents = sqwish.minify contents if @mode is 'production'
-      fingerprint = '-' + fingerprintForPkg('css', pkg, contents) if @mode is 'production'
-      filename = "#{pkg}#{fingerprint ? ''}.css"
+      fingerprint = '-' + fingerprintForPkg('css', pkg) if @mode is 'production'
+      filename = "css/#{pkg}#{fingerprint ? ''}.css"
       writeFile filename, contents
       if @gzip then gzipPkg(contents, filename, finishCallback) else finishCallback()
       total++
@@ -175,8 +167,8 @@ module.exports.package = (callback) =>
       contents = generateJSTs pkg
       contents = @_tmplPrefix + contents
       contents = uglify contents if @mode is 'production'
-      fingerprint = '-' + fingerprintForPkg('jst', pkg, contents) if @mode is 'production'
-      filename = "#{pkg}#{fingerprint ? ''}.jst.js"
+      fingerprint = '-' + fingerprintForPkg('jst', pkg) if @mode is 'production'
+      filename = "js/#{pkg}#{fingerprint ? ''}.jst.js"
       writeFile filename , contents
       if @gzip then gzipPkg(contents, filename, finishCallback) else finishCallback()
       total++
@@ -262,7 +254,7 @@ module.exports.templateParsers = templateParsers =
     require('jade').compile(contents, { client: true, compileDebug: true })
 
   '.mustache': (contents, filename) ->
-    'new Hogan.Template(' + require('hogan.js').compile(contents, { asString: true }) + ')'
+    'new Hogan.Template(' + require('hogan').compile(contents, { asString: true }) + ')'
 
 # Generates javascript template functions packed into a JST namespace
 # 
@@ -419,10 +411,10 @@ gzipPkg = (contents, filename, callback) =>
 # @return {String} The md5 fingerprint to append
 
 fingerprintCache = { js: {}, jst: {}, css: {} }
-module.exports.fingerprintForPkg = fingerprintForPkg = (pkgType, pkgName, pkgContents) =>
+module.exports.fingerprintForPkg = fingerprintForPkg = (pkgType, pkgName) =>
   return fingerprintCache[pkgType][pkgName] if fingerprintCache[pkgType][pkgName]?
-  throw new Error("nap.package() must be called before nap can be used in production mode") if pkgContents == undefined
   md5 = crypto.createHash('md5')
+  pkgContents = (fs.readFileSync(file) for file in @assets[pkgType][pkgName]).join('')
   md5.update pkgContents
   fingerprintCache[pkgType][pkgName] = md5.digest('hex')
   
