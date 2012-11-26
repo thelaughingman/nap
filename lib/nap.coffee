@@ -140,6 +140,16 @@ module.exports.package = (callback) =>
   total = _.reduce (_.values(pkgs).length for key, pkgs of @assets), (memo, num) -> memo + num
   finishCallback = _.after total, -> callback() if callback?
   
+  
+  # Clear out assets directory and package assets if mode is production
+  rimraf.sync "#{process.cwd()}/#{@publicDir}/js"
+  fs.mkdirSync "#{process.cwd()}/#{@publicDir}/js", '0755'
+  fs.writeFileSync "#{process.cwd()}#{@publicDir}/js/.gitignore", "/*"
+  
+  rimraf.sync "#{process.cwd()}/#{@publicDir}/css"  
+  fs.mkdirSync "#{process.cwd()}/#{@publicDir}/css", '0755'
+  fs.writeFileSync "#{process.cwd()}#{@publicDir}/css/.gitignore", "/*"
+      
   if @assets.js?
     for pkg, files of @assets.js
       contents = (contents for fn, contents of preprocessPkg pkg, 'js').join('')
