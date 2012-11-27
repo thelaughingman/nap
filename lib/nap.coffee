@@ -39,7 +39,11 @@ module.exports = (options = {}) =>
   @cdnUrl = if options.cdnUrl? then options.cdnUrl.replace /\/$/, '' else undefined
   @gzip = options.gzip ? false
   @_tmplPrefix = 'window.JST = {};\n'
-  @_assetsDir = '/'
+  if @mode is 'production'
+    @_assetsDir = '/assets'
+  else
+    @_assetsDir = '/'
+    
   #@_outputDir = path.normalize @publicDir + @_assetsDir
   @_outputDir = path.normalize @publicDir
   
