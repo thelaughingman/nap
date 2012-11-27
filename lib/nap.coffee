@@ -40,9 +40,9 @@ module.exports = (options = {}) =>
   @gzip = options.gzip ? false
   @_tmplPrefix = 'window.JST = {};\n'
   if @mode is 'production'
-    @_assetsDir = '/assets'
-  else
     @_assetsDir = '/'
+  else
+    @_assetsDir = '/assets'
     
   #@_outputDir = path.normalize @publicDir + @_assetsDir
   @_outputDir = path.normalize @publicDir
@@ -86,7 +86,7 @@ module.exports.js = (pkg, gzip = @gzip) =>
   output = ''
   for filename, contents of preprocessPkg pkg, 'js'
     writeFile filename, contents unless @usingMiddleware
-    output += "<script src='#{@_assetsDir}/js/#{filename}' type='text/javascript'></script>"
+    output += "<script src='#{@_assetsDir}/#{filename}' type='text/javascript'></script>"
   output
   
 # Run css pre-processors & output the packages in dev.
@@ -108,7 +108,7 @@ module.exports.css = (pkg, gzip = @gzip) =>
   output = ''
   for filename, contents of preprocessPkg pkg, 'css'
     writeFile filename, contents unless @usingMiddleware
-    output += "<link href='#{@_assetsDir}/css/#{filename}' rel='stylesheet' type='text/css'>"
+    output += "<link href='#{@_assetsDir}/#{filename}' rel='stylesheet' type='text/css'>"
   output
   
 # Compile the templates into JST['file/path'] : functionString pairs in dev
