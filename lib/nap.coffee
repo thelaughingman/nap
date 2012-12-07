@@ -161,6 +161,8 @@ module.exports.package = (callback) =>
       fingerprint = '-' + fingerprintForPkg('js', pkg) if @mode is 'production'
       filename = "js/#{pkg}#{fingerprint ? ''}.js"
       writeFile filename, contents
+      # write also the file without fingerprinting
+      writeFile "js/#{pkg}.js", contents  if @mode is 'production'
       if @gzip then gzipPkg(contents, filename, finishCallback) else finishCallback()
       total++
   
