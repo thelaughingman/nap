@@ -67,10 +67,6 @@ module.exports = (options = {}) =>
   
   @
 
-# Run js pre-processors & output the packages in dev.
-# 
-# @param {String} pkg The name of the package to output
-# @return {String} Script tag(s) pointing to the ouput package(s)
 
 module.exports.js = (pkg, gzip = @gzip) =>
   throw new Error "Cannot find package '#{pkg}'" unless @assets.js[pkg]?
@@ -157,13 +153,16 @@ module.exports.package = (callback) =>
   if @assets.js?
     for pkg, files of @assets.js
       contents = (contents for fn, contents of preprocessPkg pkg, 'js').join('')
-      contents = uglify contents if @mode is 'production'
+      ugly = uglify contents if @mode is 'production'
       fingerprint = '-' + fingerprintForPkg('js', pkg) if @mode is 'production'
       filename = "js/#{pkg}#{fingerprint ? ''}.js"
-      writeFile filename, contents
-      # write also the file without fingerprinting
-      writeFile "js/#{pkg}.js", contents  if @mode is 'production'
-      if @gzip then gzipPkg(contents, filename, finishCallback) else finishCallback()
+      writeFile filename, ugly
+      
+      filename = "js/#{pkg}.js"
+      writeFile filename, ugly
+            
+      writeFile "js/#{pkg}-dev.js", contents if @mode is 'production'
+      if @gzip then gzipPkg(ugly, filename, finishCallback) else finishCallback()
       total++
   
   if @assets.css?
