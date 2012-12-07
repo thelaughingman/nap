@@ -161,7 +161,7 @@ module.exports.package = (callback) =>
       filename = "js/#{pkg}.js"
       writeFile filename, ugly
             
-      writeFile "js/#{pkg}-dev.js", contents if @mode is 'production'
+      writeFile "js/#{pkg}-dev.js", contents
       if @gzip then gzipPkg(ugly, filename, finishCallback) else finishCallback()
       total++
   
