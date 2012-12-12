@@ -153,16 +153,16 @@ module.exports.package = (callback) =>
   if @assets.js?
     for pkg, files of @assets.js
       contents = (contents for fn, contents of preprocessPkg pkg, 'js').join('')
-      ugly = uglify contents if @mode is 'production'
+      contents = uglify contents if @mode is 'production'
       fingerprint = '-' + fingerprintForPkg('js', pkg) if @mode is 'production'
       filename = "js/#{pkg}#{fingerprint ? ''}.js"
-      writeFile filename, ugly
+      writeFile filename, contents
       
       filename = "js/#{pkg}.js"
-      writeFile filename, ugly
+      writeFile filename, contents
             
       writeFile "js/#{pkg}-dev.js", contents
-      if @gzip then gzipPkg(ugly, filename, finishCallback) else finishCallback()
+      if @gzip then gzipPkg(contents, filename, finishCallback) else finishCallback()
       total++
   
   if @assets.css?
