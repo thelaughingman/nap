@@ -11,10 +11,8 @@ _.mixin require 'underscore.string'
 mkdirp = require 'mkdirp'
 fileUtil = require 'file'
 glob = require 'glob'
-less = require 'less'
 rimraf = require 'rimraf'
 crypto = require 'crypto'
-step = require "step"
 zlib = require 'zlib'
 
 # The initial configuration function. Pass it options such as `assets` to let nap determine which
