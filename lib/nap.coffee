@@ -11,8 +11,10 @@ _.mixin require 'underscore.string'
 mkdirp = require 'mkdirp'
 fileUtil = require 'file'
 glob = require 'glob'
+less = require 'less'
 rimraf = require 'rimraf'
 crypto = require 'crypto'
+step = require "step"
 zlib = require 'zlib'
 
 # The initial configuration function. Pass it options such as `assets` to let nap determine which
@@ -50,11 +52,7 @@ module.exports = (options = {}) =>
   unless path.existsSync process.cwd() + @publicDir
     throw new Error "The directory #{@publicDir} doesn't exist"
   
-  # Clear out assets directory and package assets if mode is production
-  # rimraf.sync "#{process.cwd()}/#{@publicDir}/assets"
-  # unless @usingMiddleware
-  #  fs.mkdirSync process.cwd() + @_outputDir, '0755'
-  #  fs.writeFileSync "#{process.cwd()}/#{@_outputDir}/.gitignore", "/*"
+
   
   # Add any javascript necessary for templates (like the jade runtime)
   for filename in _.flatten @assets.jst
@@ -80,10 +78,12 @@ module.exports.js = (pkg, gzip = @gzip) =>
   expandAssetGlobs()
   
   output = ''
-  for filename, contents of preprocessPkg pkg, 'js'
-    writeFile filename, contents unless @usingMiddleware
-    output += "<script src='#{@_assetsDir}/#{filename}' type='text/javascript'></script>"
-  output
+  preprocessPkg pkg, 'js', (results) =>
+    for filename, contents of results
+      writeFile filename, contents unless @usingMiddleware
+      output += "<script src='#{@_assetsDir}/#{filename}' type='text/javascript'></script>"
+  output 
+  
   
 # Run css pre-processors & output the packages in dev.
 # 
@@ -102,9 +102,10 @@ module.exports.css = (pkg, gzip = @gzip) =>
   expandAssetGlobs()
   
   output = ''
-  for filename, contents of preprocessPkg pkg, 'css'
-    writeFile filename, contents unless @usingMiddleware
-    output += "<link href='#{@_assetsDir}/#{filename}' rel='stylesheet' type='text/css'>"
+  preprocessPkg pkg, 'css', (results) =>
+    for filename, contents of results
+      writeFile filename, contents unless @usingMiddleware
+      output += "<link href='#{@_assetsDir}/#{filename}' rel='stylesheet' type='text/css'>"
   output
   
 # Compile the templates into JST['file/path'] : functionString pairs in dev
@@ -141,6 +142,7 @@ module.exports.package = (callback) =>
   finishCallback = _.after total, -> callback() if callback?
   
   
+  
   # Clear out assets directory and package assets if mode is production
   rimraf.sync "#{process.cwd()}/#{@publicDir}/js"
   fs.mkdirSync "#{process.cwd()}/#{@publicDir}/js", '0755'
@@ -150,32 +152,37 @@ module.exports.package = (callback) =>
   fs.mkdirSync "#{process.cwd()}/#{@publicDir}/css", '0755'
   fs.writeFileSync "#{process.cwd()}#{@publicDir}/css/.gitignore", "/*"
       
+  
   if @assets.js?
+  
     for pkg, files of @assets.js
-      contents = (contents for fn, contents of preprocessPkg pkg, 'js').join('')
-      contents = uglify contents if @mode is 'production'
-      fingerprint = '-' + fingerprintForPkg('js', pkg) if @mode is 'production'
-      filename = "js/#{pkg}#{fingerprint ? ''}.js"
-      writeFile filename, contents
+      preprocessPkg pkg, 'js', (result) =>
+         
+        contents = (contents for fn, contents of result).join('')
+        contents = uglify contents if @mode is 'production'
+        fingerprint = '-' + fingerprintForPkg('js', pkg) if @mode is 'production'
+        filename = "js/#{pkg}#{fingerprint ? ''}.js"
+        writeFile filename, contents
       
-      filename = "js/#{pkg}.js"
-      writeFile filename, contents
+        filename = "js/#{pkg}.js"
+        writeFile filename, contents
             
-      writeFile "js/#{pkg}-dev.js", contents
-      if @gzip then gzipPkg(contents, filename, finishCallback) else finishCallback()
-      total++
+        writeFile "js/#{pkg}-dev.js", contents
+        if @gzip then gzipPkg(contents, filename, finishCallback) else finishCallback()
+        total++
   
   if @assets.css?
     for pkg, files of @assets.css 
-      contents = (for filename, contents of preprocessPkg pkg, 'css'
-        embedFiles filename, contents
-      ).join('')
-      contents = sqwish.minify contents if @mode is 'production'
-      fingerprint = '-' + fingerprintForPkg('css', pkg) if @mode is 'production'
-      filename = "css/#{pkg}#{fingerprint ? ''}.css"
-      writeFile filename, contents
-      if @gzip then gzipPkg(contents, filename, finishCallback) else finishCallback()
-      total++
+      preprocessPkg pkg, 'css', (result) =>
+        contents = (for filename, contents of result
+          embedFiles filename, contents
+        ).join('')
+        contents = sqwish.minify contents if @mode is 'production'
+        fingerprint = '-' + fingerprintForPkg('css', pkg) if @mode is 'production'
+        filename = "css/#{pkg}#{fingerprint ? ''}.css"
+        writeFile filename, contents
+        if @gzip then gzipPkg(contents, filename, finishCallback) else finishCallback()
+        total++
       
   if @assets.jst?
     for pkg, files of @assets.jst
@@ -207,8 +214,8 @@ module.exports.middleware = (req, res, next) =>
         for filename in filenames
           if req.url.replace(/^\/assets\/|.(?!.*\.).*/g, '') is filename.replace(/.(?!.*\.).*/, '')
             contents = fs.readFileSync(path.resolve process.cwd() + '/' + filename).toString()
-            contents = preprocess contents, filename
-            res.end contents
+            contents = preprocess contents, filename, (result) ->
+              res.end result
             return
 
     when '.js'
@@ -227,8 +234,8 @@ module.exports.middleware = (req, res, next) =>
         for filename in filenames
           if req.url.replace(/^\/assets\/|.(?!.*\.).*/g, '') is filename.replace(/.(?!.*\.).*/, '')
             contents = fs.readFileSync(path.resolve process.cwd() + '/' + filename).toString()
-            contents = preprocess contents, filename
-            res.end contents
+            contents = preprocess contents, filename, (result) ->
+              res.end contents
             return
   
   next()
@@ -238,31 +245,75 @@ module.exports.middleware = (req, res, next) =>
 
 module.exports.preprocessors = preprocessors =
   
-  '.coffee': (contents, filename) ->
+  '.coffee': (contents, filename, callback) ->
     try
-      coffee.compile contents
+      
+      callback(coffee.compile contents )
     catch err
       err.stack = "Nap error compiling #{filename}\n" + err.stack
       throw err
     
-  '.styl': (contents, filename) ->
+  '.styl': (contents, filename, callback) ->
     require('stylus')(contents)
       .set('filename', process.cwd() + '/' + filename)
       .use(require('nib')())
       .render (err, out) ->
         throw(err) if err
-        contents = out
-    contents
+        callback(out)
     
-  '.less': (contents, filename) ->
-    require('less').render contents, (err, out) ->
+  '.less': (contents, filename, callback) ->
+    less or= patchLess(require 'less')
+    options = {}
+    options.optimization= 1
+    options.silent= false
+    options.paths= ["assets/css/"]
+    options.color= true
+    options.filename = filename
+    options.paths = [path.dirname(filename)].concat(options.paths)
+    compress = true
+    less.render contents, options, (err, out) ->
       throw(err) if err
-      contents = out
-    contents
+      callback(out)
+
 
 # An obj of default fileExtension: templateParserFunction pairs
 # The templateParserFunction function takes contents, [filename] and returns the parsed contents
 
+
+
+patchLess: (less) ->
+  # Monkey patch importer of LESS to load files synchronously
+  less.Parser.importer = (file, paths, callback) ->
+    paths.unshift "."
+
+    i = 0
+    while i < paths.length
+      try
+        pathname = path.join(paths[i], file)
+        fs.statSync(pathname)
+        break
+      catch e
+        pathname = null
+
+      i++
+
+    if not pathname
+      throw new Error "File #{file} not found"
+
+    data = fs.readFileSync(pathname, 'utf-8')
+    new(less.Parser)(
+      paths: [path.dirname(pathname)].concat(paths)
+      filename: pathname
+    ).parse(data, (e, root) ->
+      if (e)
+        less.writeError(e)
+      callback(e, root)
+    )
+
+  less
+
+    
+      
 module.exports.templateParsers = templateParsers =
   
   '.jade': (contents, filename) ->
@@ -303,9 +354,14 @@ module.exports.generateJSTs = generateJSTs = (pkg) =>
 # @param {String} filename The contents of the file to preprocess
 # @return {String} The new file contents 
 
-preprocess = (contents, filename) =>
-  ext = path.extname filename
-  if preprocessors[ext]? then preprocessors[ext](contents, filename) else contents 
+preprocess = (contents, filename, callback) ->
+    
+    ext = path.extname(filename)
+    if preprocessors[ext]?
+      preprocessors[ext] contents, filename, (result) =>
+        callback(result)
+    else
+       callback(contents)
 
 # Run any pre-processors on a package, and return an obj of { filename: compiledContents }
 # 
@@ -313,17 +369,15 @@ preprocess = (contents, filename) =>
 # @param {String} type Either 'js' or 'css'
 # @return {Object} A { filename: compiledContents } obj 
 
-preprocessPkg = (pkg, type) =>
+preprocessPkg = (pkg, type, callback) =>
   
   obj = {}
-  
   for filename in @assets[type][pkg]
     contents = fs.readFileSync(path.resolve process.cwd() + '/' + filename).toString()
-    contents = preprocess contents, filename
-    
-    outputFilename = filename.replace /\.[^.]*$/, '' + '.' + type
-    obj[outputFilename] = contents
-  obj
+    preprocess contents, filename, (result) =>
+      outputFilename = filename.replace /\.[^.]*$/, '' + '.' + type
+      obj[outputFilename] = result
+      callback(obj)
       
 # Given a filename creates the sub directories it's in, if it doesn't exist. And writes it to the
 # @_outputDir.
