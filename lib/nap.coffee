@@ -36,7 +36,7 @@ module.exports = (options = {}) =>
     when 'staging' then 'production'
     when 'production' then 'production'
     else 'development'
-  @cdnUrl = if options.cdnUrl? then options.cdnUrl.replace /\/$/, '' else undefined
+  @cdnUrl = if options.cdnUrl? then options.cdnUrl else undefined
   @gzip = options.gzip ? false
   @_tmplPrefix = 'window.JST = {};\n'
   if @mode is 'production'
@@ -54,7 +54,7 @@ module.exports = (options = {}) =>
   # rimraf.sync "#{process.cwd()}/#{@publicDir}/assets"
   # unless @usingMiddleware
   #  fs.mkdirSync process.cwd() + @_outputDir, '0755'
-  #  fs.writeFileSync "#{process.cwd()}/#{@_outputDir}/.gitignore", "/*"
+  #  fs.writeFileSync "#{process.cwd()}/#{@_outputDir}/.gitignore", 
   
   # Add any javascript necessary for templates (like the jade runtime)
   for filename in _.flatten @assets.jst
@@ -80,6 +80,7 @@ module.exports.js = (pkg, gzip = @gzip) =>
   expandAssetGlobs()
   
   output = ''
+
   for filename, contents of preprocessPkg pkg, 'js'
     writeFile filename, contents unless @usingMiddleware
     output += "<script src='#{@_assetsDir}/#{filename}' type='text/javascript'></script>"
@@ -157,11 +158,6 @@ module.exports.package = (callback) =>
       fingerprint = '-' + fingerprintForPkg('js', pkg) if @mode is 'production'
       filename = "js/#{pkg}#{fingerprint ? ''}.js"
       writeFile filename, contents
-      
-      filename = "js/#{pkg}.js"
-      writeFile filename, contents
-            
-      writeFile "js/#{pkg}-dev.js", contents
       if @gzip then gzipPkg(contents, filename, finishCallback) else finishCallback()
       total++
   
@@ -208,7 +204,7 @@ module.exports.middleware = (req, res, next) =>
       for pkg, filenames of @assets.css
         for filename in filenames
           
-          if req.url.replace(/^\/assets\/|.(?!.*\.).*/g, '') is filename.replace(/.(?!.*\.).*/, '')
+          if req.url.replace(/^\/assets\/|.(?!.*\.).*/g, '') is filename.replace(/^assets\/|.(?!.*\.).*/g, '')
             contents = fs.readFileSync(path.resolve process.cwd() + '/' + filename).toString()
             contents = preprocess contents, filename
             res.end contents
@@ -216,6 +212,7 @@ module.exports.middleware = (req, res, next) =>
 
     when '.js'
       res.setHeader?("Content-Type", "application/javascript")
+      
       
       if req.url.match /\.jst\.js$/
         pkg = path.basename req.url, '.jst.js'
@@ -228,7 +225,7 @@ module.exports.middleware = (req, res, next) =>
     
       for pkg, filenames of @assets.js
         for filename in filenames
-          if req.url.replace(/^\/assets\/|.(?!.*\.).*/g, '') is filename.replace(/.(?!.*\.).*/, '')
+          if req.url.replace(/^\/assets\/|.(?!.*\.).*/g, '') is filename.replace(/^assets\/|.(?!.*\.).*/g, '')
             contents = fs.readFileSync(path.resolve process.cwd() + '/' + filename).toString()
             contents = preprocess contents, filename
             res.end contents
@@ -398,7 +395,9 @@ uglify = (str) ->
 
 embedFiles = (filename, contents) =>
   
+  
   endsWithEmbed = _.endsWith path.basename(filename).split('.')[0], '_embed'
+  
   return contents if not contents? or contents is '' or not endsWithEmbed
   
   # Table of mime types depending on file extension
