@@ -396,9 +396,9 @@ uglify = (str) ->
 embedFiles = (filename, contents) =>
   
   
-  endsWithEmbed = _.endsWith path.basename(filename).split('.')[0], '_embed'
+  # endsWithEmbed = _.endsWith path.basename(filename).split('.')[0], '_embed'
   
-  return contents if not contents? or contents is '' or not endsWithEmbed
+  return contents if not contents? or contents is '' #or not endsWithEmbed
   
   # Table of mime types depending on file extension
   mimes =
@@ -422,7 +422,7 @@ embedFiles = (filename, contents) =>
 
     start = offsetContents.indexOf('url(') + 4 + offset
     end = contents.substring(start, contents.length).indexOf(')') + start
-    filename = _.trim _.trim(contents.substring(start, end), '"'), "'"
+    origin = filename = _.trim _.trim(contents.substring(start, end), '"'), "'"
     filename = process.cwd() + @publicDir + '/' + filename.replace /^\//, ''
     mime = mimes[path.extname filename]
     
@@ -431,8 +431,8 @@ embedFiles = (filename, contents) =>
         base64Str = fs.readFileSync(path.resolve filename).toString('base64')
       
         newUrl = "data:#{mime};base64,#{base64Str}"
-        contents = _.splice(contents, start, end - start, newUrl)
-        end = start + newUrl.length + 4
+        contents = _.splice(contents, start, end - start, newUrl, ",", origin)
+        end = start + newUrl.length + 4 + origin.lenght
       else
         throw new Error 'Tried to embed data-uri, but could not find file ' + filename
     else
