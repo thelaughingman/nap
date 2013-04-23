@@ -90,7 +90,7 @@ module.exports.js = (pkg, gzip = @gzip) =>
 
   for filename, contents of preprocessPkg pkg, 'js'
     writeFile filename, contents unless @usingMiddleware
-    filename = filename.replace(/^assets\//g, '')
+    filename = filename.replace(/^assets\//g, '/')
     output += "<script src='#{filename}' type='text/javascript'></script>"
   output
   
@@ -116,7 +116,7 @@ module.exports.css = (pkg, gzip = @gzip) =>
   
     
     writeFile @assetPath + filename, contents unless @usingMiddleware
-    filename = filename.replace(/^assets\//g, '')
+    filename = filename.replace(/^assets\//g, '/')
     output += "<link href='#{filename}' rel='stylesheet' type='text/css'>"
   
   output
@@ -214,8 +214,6 @@ module.exports.middleware = (req, res, next) =>
   
      
     when '.css'
-      
-      console.log req.url
       
       res.setHeader?("Content-Type", "text/css")
       for pkg, filenames of @assets.css
@@ -377,8 +375,6 @@ preprocess = (contents, filename) =>
 preprocessPkg = (pkg, type) =>
   
   obj = {}
-  
-  console.log "preprocessPkg: " + type
   
   for filename in @assets[type][pkg]
   
