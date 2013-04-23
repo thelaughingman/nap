@@ -28,6 +28,8 @@ module.exports = (options = {}) =>
     throw new Error "You must specify an 'assets' obj with keys 'js', 'css', or 'jst'"
   @assets = _.clone options.assets
   @originalAssets = _.clone options.assets
+  @assetPath = options.assetPath
+    
   expandAssetGlobs()
 
   # Config defaults
@@ -44,6 +46,8 @@ module.exports = (options = {}) =>
   else
     @_assetsDir = ''
     
+ 
+  
   #@_outputDir = path.normalize @publicDir + @_assetsDir
   @_outputDir = path.normalize @publicDir
   
@@ -69,11 +73,14 @@ module.exports = (options = {}) =>
 
 
 module.exports.js = (pkg, gzip = @gzip) =>
-  throw new Error "Cannot find package '#{pkg}'" unless @assets.js[pkg]?
   
+
+  throw new Error "Cannot find package '#{pkg}'" unless @assets.js[pkg]?
   if @mode is 'production'
+  
     fingerprint = '-' + fingerprintForPkg('js', pkg) if @mode is 'production'
     src = (@cdnUrl ? @_assetsDir) + 'js/' + "#{pkg}#{fingerprint ? ''}.js"
+    
     src += '.jgz' if gzip
     return "<script src='#{src}' type='text/javascript'></script>"
   
@@ -83,7 +90,8 @@ module.exports.js = (pkg, gzip = @gzip) =>
 
   for filename, contents of preprocessPkg pkg, 'js'
     writeFile filename, contents unless @usingMiddleware
-    output += "<script src='#{@_assetsDir}/#{filename}' type='text/javascript'></script>"
+    filename = filename.replace(/^assets\//g, '')
+    output += "<script src='#{filename}' type='text/javascript'></script>"
   output
   
 # Run css pre-processors & output the packages in dev.
@@ -103,9 +111,14 @@ module.exports.css = (pkg, gzip = @gzip) =>
   expandAssetGlobs()
   
   output = ''
+  
   for filename, contents of preprocessPkg pkg, 'css'
-    writeFile filename, contents unless @usingMiddleware
-    output += "<link href='#{@_assetsDir}/#{filename}' rel='stylesheet' type='text/css'>"
+  
+    
+    writeFile @assetPath + filename, contents unless @usingMiddleware
+    filename = filename.replace(/^assets\//g, '')
+    output += "<link href='#{filename}' rel='stylesheet' type='text/css'>"
+  
   output
   
 # Compile the templates into JST['file/path'] : functionString pairs in dev
@@ -199,12 +212,16 @@ module.exports.middleware = (req, res, next) =>
 
   switch path.extname req.url
   
+     
     when '.css'
+      
+      console.log req.url
+      
       res.setHeader?("Content-Type", "text/css")
       for pkg, filenames of @assets.css
         for filename in filenames
           
-          if req.url.replace(/^\/assets\/|.(?!.*\.).*/g, '') is filename.replace(/^assets\/|.(?!.*\.).*/g, '')
+          if req.url.replace(/^\/|.(?!.*\.).*/g, '') is filename.replace(/^assets\/|.(?!.*\.).*/g, '')
             contents = fs.readFileSync(path.resolve process.cwd() + '/' + filename).toString()
             contents = preprocess contents, filename
             res.end contents
@@ -212,6 +229,7 @@ module.exports.middleware = (req, res, next) =>
 
     when '.js'
       res.setHeader?("Content-Type", "application/javascript")
+      
       
       
       if req.url.match /\.jst\.js$/
@@ -223,9 +241,11 @@ module.exports.middleware = (req, res, next) =>
         res.end @_tmplPrefix
         return
     
+      
       for pkg, filenames of @assets.js
         for filename in filenames
-          if req.url.replace(/^\/assets\/|.(?!.*\.).*/g, '') is filename.replace(/^assets\/|.(?!.*\.).*/g, '')
+          
+          if req.url.replace(/^\/|.(?!.*\.).*/g, '') is filename.replace(/^assets\/|.(?!.*\.).*/g, '')
             contents = fs.readFileSync(path.resolve process.cwd() + '/' + filename).toString()
             contents = preprocess contents, filename
             res.end contents
@@ -358,7 +378,10 @@ preprocessPkg = (pkg, type) =>
   
   obj = {}
   
+  console.log "preprocessPkg: " + type
+  
   for filename in @assets[type][pkg]
+  
     contents = fs.readFileSync(path.resolve process.cwd() + '/' + filename).toString()
     contents = preprocess contents, filename
     
@@ -396,9 +419,9 @@ uglify = (str) ->
 embedFiles = (filename, contents) =>
   
   
-  # endsWithEmbed = _.endsWith path.basename(filename).split('.')[0], '_embed'
+  endsWithEmbed = _.endsWith path.basename(filename).split('.')[0], '_embed'
   
-  return contents if not contents? or contents is '' #or not endsWithEmbed
+  return contents if not contents? or contents is '' or not endsWithEmbed
   
   # Table of mime types depending on file extension
   mimes =
@@ -422,7 +445,7 @@ embedFiles = (filename, contents) =>
 
     start = offsetContents.indexOf('url(') + 4 + offset
     end = contents.substring(start, contents.length).indexOf(')') + start
-    origin = filename = _.trim _.trim(contents.substring(start, end), '"'), "'"
+    filename = _.trim _.trim(contents.substring(start, end), '"'), "'"
     filename = process.cwd() + @publicDir + '/' + filename.replace /^\//, ''
     mime = mimes[path.extname filename]
     
@@ -431,8 +454,8 @@ embedFiles = (filename, contents) =>
         base64Str = fs.readFileSync(path.resolve filename).toString('base64')
       
         newUrl = "data:#{mime};base64,#{base64Str}"
-        contents = _.splice(contents, start, end - start, newUrl, ",", origin)
-        end = start + newUrl.length + 4 + origin.lenght
+        contents = _.splice(contents, start, end - start, newUrl)
+        end = start + newUrl.length + 4
       else
         throw new Error 'Tried to embed data-uri, but could not find file ' + filename
     else
@@ -476,11 +499,13 @@ module.exports.fingerprintForPkg = fingerprintForPkg = (pkgType, pkgName) =>
 expandAssetGlobs = =>
   assets = {js: {}, css: {}, jst: {}}
   appDir = process.cwd().replace(/\\/g, "\/")
+  
+
   for key, obj of @originalAssets
     for pkg, patterns of @originalAssets[key]
       matches = []
       for pattern in patterns
-        fnd = glob.sync path.resolve("#{appDir}/#{pattern}").replace(/\\/g, "\/")
+        fnd = glob.sync path.resolve("#{appDir}/#{@assetPath}/#{pattern}").replace(/\\/g, "\/")
         matches = matches.concat(fnd) 
       matches = _.uniq _.flatten matches
       matches = (file.replace(appDir, '').replace(/^\//, '') for file in matches)
